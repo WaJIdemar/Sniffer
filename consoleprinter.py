@@ -2,7 +2,7 @@ from textwrap import wrap
 from unpacker import Unpacker
 
 
-class Printer:
+class ConsolePrinter:
     TAB_1 = '\t - '
     TAB_2 = '\t\t - '
     TAB_3 = '\t\t\t - '

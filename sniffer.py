@@ -1,7 +1,7 @@
 from _socket import ntohs
 from datetime import datetime, timezone
 from socket import socket, AF_PACKET, SOCK_RAW
-from printer import Printer
+from consoleprinter import ConsolePrinter
 from unpacker import Unpacker
 from collections import defaultdict
 from os import mkdir, sep
@@ -24,16 +24,34 @@ class Sniffer:
             source_port, destination_port, sequence, acknowledgment, flag_urg, \
             flag_ack, flag_psh, flag_rst, flag_syn, flag_fin, data \
                 = unpacker.get_tcp_head(data)
-            key = source_ip + "/" + target_ip
-            if key not in self.tcp_session:
-                key = target_ip + "/" + source_ip
-                if key not in self.tcp_session:
-                    self.tcp_session[key] = []
-
-            self.tcp_session[key].append(raw_data)
+            session_key = self.get_or_create_tcp_session_key(source_ip,
+                                                             target_ip,
+                                                             source_port,
+                                                             destination_port)
+            self.tcp_session[session_key].append(raw_data)
 
             if flag_fin == 1 or flag_rst == 1:
-                self.write_tcp_session(key)
+                self.write_tcp_session(session_key)
+
+    def get_or_create_tcp_session_key(self, source_ip: str, target_ip: str,
+                                      source_port: int,
+                                      destination_port: int) -> str:
+        """Returns the session key or creates a new session key if there is
+        no such key in tcp_sessions"""
+        session_key = source_ip + "/" + target_ip + ":" + str(source_port)
+        if session_key not in self.tcp_session:
+            session_key = source_ip + "/" + target_ip + ":" + str(
+                destination_port)
+            if session_key not in self.tcp_session:
+                session_key = target_ip + "/" + source_ip + ":" + str(
+                    source_port)
+                if session_key not in self.tcp_session:
+                    session_key = target_ip + "/" + source_ip + ":" + str(
+                        destination_port)
+                    if session_key not in self.tcp_session:
+                        self.tcp_session[session_key] = []
+
+        return session_key
 
     def write_tcp_session(self, key: str) -> None:
         """Write to pcap TCP session HTTP"""
@@ -132,7 +150,7 @@ class Sniffer:
         """Start sniffer and print in console"""
         s = socket(AF_PACKET, SOCK_RAW, ntohs(3))
         self.write_global_header()
-        printer = Printer()
+        printer = ConsolePrinter()
         while True:
             raw_data, addres = s.recvfrom(65535)
             printer.print_packet(raw_data)
